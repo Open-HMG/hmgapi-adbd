@@ -16,8 +16,11 @@ permissions:
 env:
   MOD: adbd
   HMGAPI_REPO: Open-HMG/HMG-API
-  # hmgapi-adbd as HMG-API main built it (NDK 21.4.7075529); a change to the sources changes it here too
-  ADBD_MD5: f61ff1fd0b98e1f4289639be7a8a0c68
+  # hmgapi-adbd as HMG-API main built it (NDK 21.4.7075529, LC_ALL=C); a change to the sources changes it here too.
+  # The locale matters: build.sh's *.c globs sort by it, which sets the link order (en_US.UTF-8 gives
+  # f61ff1fd0b98e1f4289639be7a8a0c68, from HMG-API main too).
+  LC_ALL: C
+  ADBD_MD5: e480b55bd0ffded055a0cf362623e975
 
 jobs:
   adbd:

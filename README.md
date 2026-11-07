@@ -36,8 +36,9 @@ own libc, liblog and libdl, and prints the binary's md5:
 sh adbd/build.sh out/adbd
 ```
 
-The binary is `f61ff1fd0b98e1f4289639be7a8a0c68`, the same as HMG-API's build before the
-move; CI checks it. With the HMG-API mod SDK unpacked in `$HMGAPI_SDK`, the package
+The binary is the same as HMG-API's build before the move: `e480b55bd0ffded055a0cf362623e975`
+with `LC_ALL=C` (what CI checks), `f61ff1fd0b98e1f4289639be7a8a0c68` in an `en_US.UTF-8`
+shell. The locale sorts the `*.c` globs, which sets the link order. With the HMG-API mod SDK unpacked in `$HMGAPI_SDK`, the package
 (`build.sh` runs inside it):
 
 ```

@@ -3,7 +3,7 @@
 # for API 19, linked against the head unit's own libc/liblog/libdl (its static
 # libc from a newer NDK can't read 4.4's property area). Output: $1/files/hmgapi-adbd
 set -e
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/.."
 OUTDIR=${1:?usage: build.sh <mod output dir>}
 NDK=${NDK:-$HOME/Android/ndk/21.4.7075529}
 TC=$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin

@@ -19,6 +19,7 @@ env:
   MOD: adbd
   AUTHOR_KEY: 7251ce71-a146-8a1e-958b-dbffc6af7359
   HMGAPI_REPO: Open-HMG/HMG-API
+  LC_ALL: C   # as CI: build.sh's *.c globs sort by locale, which sets the link order
 
 jobs:
   release:

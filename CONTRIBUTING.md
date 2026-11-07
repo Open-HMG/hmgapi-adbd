@@ -11,9 +11,9 @@ Problems with HMG-API itself (the app, the installer, the engine, hook points) g
   `hmgapi-sdk.json` pins; until HMG-API 1.0.3, `./build.sh sdk` in HMG-API at that
   commit). Needs a JDK, Python 3 and the Android SDK (`ANDROID_HOME`); no car files or keys.
 - Build: `sh adbd/build.sh out/adbd`, with the Android NDK r21 (`NDK`, default
-  `~/Android/ndk/21.4.7075529`). It prints the binary's md5; CI checks it against
-  `ADBD_MD5` in `.github/workflows/ci.yml` (built with `LC_ALL=C`: the locale changes the
-  link order), so a change to the sources updates that too.
+  `~/Android/ndk/21.4.7075529`). It prints the binary's md5; `adbd/test.sh` (CI runs it)
+  checks it against `ADBD_MD5` there (built with `LC_ALL=C`: the locale changes the link
+  order), so a change to the sources updates that too.
 - `third_party/aosp-4.4.4` stays AOSP's code as released; our changes go in
   `third_party/hmgapi-compat` or `adbd/`.
 - Say which cars (model, region, software version) a change was tested on, or "off-car only".

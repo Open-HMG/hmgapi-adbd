@@ -19,7 +19,6 @@ env:
   MOD: adbd
   AUTHOR_KEY: 7251ce71-a146-8a1e-958b-dbffc6af7359
   HMGAPI_REPO: Open-HMG/HMG-API
-  LC_ALL: C   # as CI: build.sh's *.c globs sort by locale, which sets the link order
 
 jobs:
   release:
@@ -124,6 +123,8 @@ jobs:
           echo "MOD_KEY_FILE=$k/mod.key" >> "$GITHUB_ENV"
 
       - name: Packages
+        env:
+          LC_ALL: C   # build.sh runs here; as CI: its *.c globs sort by locale, which sets the link order
         run: |
           out=$(HMGAPI_MOD_BUILD="$PWD/out/build/$MOD" sh "$HMGAPI_SDK/bin/mkmodpkg.sh" "$MOD" "$MOD_KEY_FILE")
           echo "$out"

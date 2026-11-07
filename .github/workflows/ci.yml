@@ -1,0 +1,121 @@
+# CI for adbd: the steps of HMG-API's mod workflow (the "hmgapi" floor, build, check-scripts,
+# a package signed with a throwaway key), with the SDK hmgapi-sdk.json pins, plus NDK r21
+# for adbd/build.sh, and the binary it builds must be the one HMG-API built (ADBD_MD5).
+# Its own copy of those steps because HMG-API's mod.yml has no NDK: once it can install one,
+# this calls mod.yml like the other mod repos (uses: Open-HMG/HMG-API/.github/workflows/mod.yml@<pin>).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  MOD: adbd
+  HMGAPI_REPO: Open-HMG/HMG-API
+  # hmgapi-adbd as HMG-API main built it (NDK 21.4.7075529); a change to the sources changes it here too
+  ADBD_MD5: f61ff1fd0b98e1f4289639be7a8a0c68
+
+jobs:
+  adbd:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Tools (clang and lld build the SDK's lpatch from a commit)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq clang lld zip unzip mksh
+
+      - name: NDK r21 (adbd/build.sh builds for API 19, which newer NDKs dropped)
+        run: |
+          printf 'y\n' | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;21.4.7075529" > /dev/null
+          echo "NDK=$ANDROID_HOME/ndk/21.4.7075529" >> "$GITHUB_ENV"
+
+      - name: Which SDK
+        id: pin
+        run: |
+          python3 - <<'PY'
+          import json, os, re, sys
+          p = json.load(open("hmgapi-sdk.json"))
+          out = open(os.environ["GITHUB_OUTPUT"], "a")
+          if set(p) == {"ref"} and re.fullmatch(r"[0-9a-f]{40}", p["ref"]):
+              out.write("form=ref\nref=%s\n" % p["ref"])
+          elif set(p) == {"version", "sha256"} and re.fullmatch(r"\d+\.\d+\.\d+", p["version"]) and re.fullmatch(r"[0-9a-f]{64}", p["sha256"]):
+              out.write("form=release\nversion=%s\nsha256=%s\n" % (p["version"], p["sha256"]))
+          else:
+              sys.exit('hmgapi-sdk.json: wanted {"ref": "<40 hex>"} or {"version": "x.y.z", "sha256": "<64 hex>"}')
+          PY
+
+      - name: HMG-API at the pinned commit
+        if: steps.pin.outputs.form == 'ref'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Open-HMG/HMG-API
+          ref: ${{ steps.pin.outputs.ref }}
+          path: .hmgapi-src
+          persist-credentials: false
+
+      - name: The SDK
+        env:
+          FORM: ${{ steps.pin.outputs.form }}
+          SDK_VERSION: ${{ steps.pin.outputs.version }}
+          SHA256: ${{ steps.pin.outputs.sha256 }}
+        run: |
+          S="$RUNNER_TEMP/hmgapi-sdk"
+          if [ "$FORM" = ref ]; then
+            (cd .hmgapi-src && ./build.sh sdk)
+            Z=$(ls .hmgapi-src/out/dist/hmgapi-mod-sdk-*.zip)
+          else
+            Z="$RUNNER_TEMP/hmgapi-mod-sdk-$SDK_VERSION.zip"
+            curl -fsSL -o "$Z" "https://github.com/$HMGAPI_REPO/releases/download/v$SDK_VERSION/hmgapi-mod-sdk-$SDK_VERSION.zip"
+            echo "$SHA256  $Z" | sha256sum -c - || { echo "the SDK zip isn't the one hmgapi-sdk.json pins"; exit 1; }
+          fi
+          rm -rf "$S" && mkdir -p "$S" && unzip -q "$Z" -d "$S"
+          rm -rf .hmgapi-src
+          echo "HMGAPI_SDK=$S" >> "$GITHUB_ENV"
+          echo "### HMG-API mod SDK $(cat "$S/VERSION") ($(cat "$S/BUILD"))" >> "$GITHUB_STEP_SUMMARY"
+          pip install --require-hashes -r "$S/requirements.txt"
+
+      - name: HMG-API floor and hook points
+        run: python3 "$HMGAPI_SDK/bin/check-points.py" "$MOD" --repo "$HMGAPI_REPO"
+
+      - name: Build
+        run: sh "$HMGAPI_SDK/bin/build-mod.sh" "$MOD" "out/build/$MOD" "out/work/$MOD"
+
+      - name: Scripts only use what the head unit has
+        run: sh "$HMGAPI_SDK/bin/check-scripts.sh" "$MOD"
+
+      - name: Packages (throwaway key), and the adbd binary
+        run: |
+          java -cp "$HMGAPI_SDK/lib/hmgapi-engine.jar" hmgapi.engine.Signing keygen "$RUNNER_TEMP/throwaway.key"
+          out=$(HMGAPI_MOD_BUILD="$PWD/out/build/$MOD" sh "$HMGAPI_SDK/bin/mkmodpkg.sh" "$MOD" "$RUNNER_TEMP/throwaway.key")
+          echo "$out"
+          Z=$(echo "$out" | tail -1)   # its last line: the zip
+          sh "$HMGAPI_SDK/bin/mknemesismod.sh" "$Z"
+          rm -f "$RUNNER_TEMP"/throwaway.key*
+          m=$(unzip -p "$Z" files/hmgapi-adbd | md5sum | cut -c1-32)
+          echo "hmgapi-adbd: $m" >> "$GITHUB_STEP_SUMMARY"
+          test "$m" = "$ADBD_MD5" || { echo "::error::hmgapi-adbd is $m, not $ADBD_MD5 (HMG-API's build): update ADBD_MD5 only with a source change"; exit 1; }
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mod-test-packages
+          path: |
+            out/packages/*.zip
+            out/dist/*.zip
+          retention-days: 14

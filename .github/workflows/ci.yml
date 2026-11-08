@@ -14,6 +14,6 @@ permissions:
 jobs:
   mod:
     # the HMG-API commit with mod.yml's ndk input (Open-HMG/HMG-API#129); @v1.0.3 from 1.0.3
-    uses: Open-HMG/HMG-API/.github/workflows/mod.yml@97587b13a3f315b107aef8e3f55a9ecc70d615eb
+    uses: Open-HMG/HMG-API/.github/workflows/mod.yml@10943767dba4f85bbc843c63454f20d5944ed69d
     with:
       ndk: "21.4.7075529"   # r21e: adbd/build.sh builds for API 19, which newer NDKs dropped
